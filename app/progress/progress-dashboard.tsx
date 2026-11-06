@@ -14,6 +14,15 @@ type Activity = {
   notes: string;
 };
 
+type ActivitySummary = {
+  activityCount: number;
+  attendedCount: number;
+  totalMinutes: number;
+  totalDistance: number;
+};
+
+type WeeklyCount = { weekStart: string; count: number };
+
 type Member = { id: number; name: string; email: string; isStaff: boolean };
 
 type ClubSession = {
@@ -36,6 +45,13 @@ function localDateKey(value: Date): string {
   const month = String(value.getMonth() + 1).padStart(2, "0");
   const day = String(value.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function localWeekStart(value: Date): string {
+  const start = new Date(value);
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  return localDateKey(start);
 }
 
 const activityLabels: Record<string, string> = {
@@ -72,6 +88,15 @@ export default function ProgressDashboard() {
   const router = useRouter();
   const [member, setMember] = useState<Member | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [activitySummary, setActivitySummary] = useState<ActivitySummary>({
+    activityCount: 0,
+    attendedCount: 0,
+    totalMinutes: 0,
+    totalDistance: 0,
+  });
+  const [weeklyCounts, setWeeklyCounts] = useState<WeeklyCount[]>([]);
+  const [hasMoreActivities, setHasMoreActivities] = useState(false);
+  const [isLoadingMoreActivities, setIsLoadingMoreActivities] = useState(false);
   const [sessions, setSessions] = useState<ClubSession[]>([]);
   const [weeklyActivityGoal, setWeeklyActivityGoal] = useState(3);
   const [weeklyGoalDraft, setWeeklyGoalDraft] = useState(3);
@@ -96,6 +121,13 @@ export default function ProgressDashboard() {
     (sessionActivityFilter === "all" || session.activityType === sessionActivityFilter) &&
     session.location.toLowerCase().includes(sessionLocationFilter.trim().toLowerCase()),
   );
+  const sessionsByDate = new Map<string, ClubSession[]>();
+  for (const session of visibleSessions) {
+    const dateKey = localDateKey(new Date(session.startsAt));
+    const dateSessions = sessionsByDate.get(dateKey) ?? [];
+    dateSessions.push(session);
+    sessionsByDate.set(dateKey, dateSessions);
+  }
   const calendarStart = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1 - calendarMonth.getDay());
   const calendarDays = Array.from({ length: 42 }, (_, index) => {
     const day = new Date(calendarStart);
@@ -106,8 +138,10 @@ export default function ProgressDashboard() {
   useEffect(() => {
     async function loadProgress() {
       try {
+        const now = new Date();
+        const weekStart = localWeekStart(now);
         const [response, sessionsResponse, goalResponse] = await Promise.all([
-          fetch("/api/activities", { cache: "no-store" }),
+          fetch(`/api/activities?weekStart=${weekStart}`, { cache: "no-store" }),
           fetch("/api/sessions", { cache: "no-store" }),
           fetch("/api/goals", { cache: "no-store" }),
         ]);
@@ -116,9 +150,18 @@ export default function ProgressDashboard() {
           return;
         }
         if (!response.ok) throw new Error("We couldn’t load your progress.");
-        const result: { member: Member; activities: Activity[] } = await response.json();
+        const result: {
+          member: Member;
+          activities: Activity[];
+          summary: ActivitySummary;
+          weeklyCounts: WeeklyCount[];
+          hasMore: boolean;
+        } = await response.json();
         setMember(result.member);
         setActivities(result.activities);
+        setActivitySummary(result.summary);
+        setWeeklyCounts(result.weeklyCounts);
+        setHasMoreActivities(result.hasMore);
         if (!sessionsResponse.ok) throw new Error("We couldn’t load upcoming sessions.");
         const sessionResult: { sessions: ClubSession[] } = await sessionsResponse.json();
         setSessions(sessionResult.sessions);
@@ -126,7 +169,6 @@ export default function ProgressDashboard() {
         const goalResult: { weeklyActivityGoal: number; currentDate: string } = await goalResponse.json();
         setWeeklyActivityGoal(goalResult.weeklyActivityGoal);
         setWeeklyGoalDraft(goalResult.weeklyActivityGoal);
-        const now = new Date(goalResult.currentDate);
         setToday(now);
         setCalendarMonth(new Date(now.getFullYear(), now.getMonth(), 1));
       } catch {
@@ -173,7 +215,22 @@ export default function ProgressDashboard() {
         return;
       }
 
-      setActivities((current) => [result.activity!, ...current]);
+      setActivities((current) => [result.activity!, ...current].slice(0, 50));
+      setActivitySummary((current) => ({
+        activityCount: current.activityCount + 1,
+        attendedCount: current.attendedCount + (result.activity!.attended ? 1 : 0),
+        totalMinutes: current.totalMinutes + result.activity!.durationMinutes,
+        totalDistance: current.totalDistance + (result.activity!.distanceKm ?? 0),
+      }));
+      if (result.activity.attended) {
+        const weekStart = localWeekStart(new Date(`${result.activity.activityDate}T00:00:00`));
+        setWeeklyCounts((current) => {
+          const found = current.find((week) => week.weekStart === weekStart);
+          return found
+            ? current.map((week) => week.weekStart === weekStart ? { ...week, count: week.count + 1 } : week)
+            : [...current, { weekStart, count: 1 }];
+        });
+      }
       form.reset();
       setSelectedActivityType("run-club");
       setMessage("Activity added to your progress.");
@@ -186,6 +243,7 @@ export default function ProgressDashboard() {
 
   async function removeActivity(activityId: number) {
     setError("");
+    const activity = activities.find((item) => item.id === activityId);
     try {
       const response = await fetch(`/api/activities/${activityId}`, { method: "DELETE" });
       if (response.status === 401) {
@@ -198,8 +256,51 @@ export default function ProgressDashboard() {
         return;
       }
       setActivities((current) => current.filter((activity) => activity.id !== activityId));
+      if (activity) {
+        setActivitySummary((current) => ({
+          activityCount: Math.max(0, current.activityCount - 1),
+          attendedCount: Math.max(0, current.attendedCount - (activity.attended ? 1 : 0)),
+          totalMinutes: Math.max(0, current.totalMinutes - activity.durationMinutes),
+          totalDistance: Math.max(0, current.totalDistance - (activity.distanceKm ?? 0)),
+        }));
+        if (activity.attended) {
+          const weekStart = localWeekStart(new Date(`${activity.activityDate}T00:00:00`));
+          setWeeklyCounts((current) => current.map((week) => week.weekStart === weekStart
+            ? { ...week, count: Math.max(0, week.count - 1) }
+            : week));
+        }
+      }
     } catch {
       setError("We couldn’t reach the server. Check your connection and try again.");
+    }
+  }
+
+  async function loadOlderActivities() {
+    const oldestActivity = activities[activities.length - 1];
+    if (!oldestActivity || !hasMoreActivities) return;
+
+    setIsLoadingMoreActivities(true);
+    setError("");
+    try {
+      const weekStart = localWeekStart(today ?? new Date());
+      const params = new URLSearchParams({
+        beforeDate: oldestActivity.activityDate,
+        beforeId: String(oldestActivity.id),
+        weekStart,
+      });
+      const response = await fetch(`/api/activities?${params}`, { cache: "no-store" });
+      if (response.status === 401) {
+        router.replace("/login");
+        return;
+      }
+      const result: { activities?: Activity[]; hasMore?: boolean; error?: string } = await response.json();
+      if (!response.ok || !result.activities) throw new Error(result.error ?? "We couldn’t load older activities.");
+      setActivities((current) => [...current, ...result.activities!]);
+      setHasMoreActivities(result.hasMore ?? false);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "We couldn’t load older activities.");
+    } finally {
+      setIsLoadingMoreActivities(false);
     }
   }
 
@@ -274,9 +375,6 @@ export default function ProgressDashboard() {
     }
   }
 
-  const attendedCount = activities.filter((activity) => activity.attended).length;
-  const totalMinutes = activities.reduce((total, activity) => total + activity.durationMinutes, 0);
-  const totalDistance = activities.reduce((total, activity) => total + (activity.distanceKm ?? 0), 0);
   const currentWeekStart = today ? new Date(today.getTime()) : new Date(0);
   currentWeekStart.setHours(0, 0, 0, 0);
   currentWeekStart.setDate(currentWeekStart.getDate() - ((currentWeekStart.getDay() + 6) % 7));
@@ -285,11 +383,7 @@ export default function ProgressDashboard() {
     start.setDate(currentWeekStart.getDate() - (6 - index) * 7);
     const end = new Date(start);
     end.setDate(start.getDate() + 7);
-    const count = activities.filter((activity) => {
-      if (!activity.attended) return false;
-      const date = new Date(`${activity.activityDate}T00:00:00`);
-      return date >= start && date < end;
-    }).length;
+    const count = weeklyCounts.find((week) => week.weekStart === localDateKey(start))?.count ?? 0;
     return { start, count };
   });
   const currentWeekCount = weeklyBuckets[weeklyBuckets.length - 1].count;
@@ -316,10 +410,10 @@ export default function ProgressDashboard() {
       </section>
 
       <section className="progress-stats" aria-label="Progress summary">
-        <div className="progress-stat"><span>ACTIVITIES</span><strong>{isLoading ? "—" : activities.length}</strong></div>
-        <div className="progress-stat"><span>ATTENDED</span><strong>{isLoading ? "—" : attendedCount}</strong></div>
-        <div className="progress-stat"><span>TIME MOVING</span><strong>{isLoading ? "—" : `${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m`}</strong></div>
-        <div className="progress-stat"><span>DISTANCE</span><strong>{isLoading ? "—" : `${totalDistance.toFixed(1)} km`}</strong></div>
+        <div className="progress-stat"><span>ACTIVITIES</span><strong>{isLoading ? "—" : activitySummary.activityCount}</strong></div>
+        <div className="progress-stat"><span>ATTENDED</span><strong>{isLoading ? "—" : activitySummary.attendedCount}</strong></div>
+        <div className="progress-stat"><span>TIME MOVING</span><strong>{isLoading ? "—" : `${Math.floor(activitySummary.totalMinutes / 60)}h ${activitySummary.totalMinutes % 60}m`}</strong></div>
+        <div className="progress-stat"><span>DISTANCE</span><strong>{isLoading ? "—" : `${activitySummary.totalDistance.toFixed(1)} km`}</strong></div>
       </section>
 
       <section className="weekly-goal" aria-labelledby="weekly-goal-title">
@@ -411,7 +505,7 @@ export default function ProgressDashboard() {
                 ))}
                 {calendarDays.map((day) => {
                   const key = localDateKey(day);
-                  const daySessions = visibleSessions.filter((session) => localDateKey(new Date(session.startsAt)) === key);
+                  const daySessions = sessionsByDate.get(key) ?? [];
                   return (
                     <div className={`session-calendar-day${day.getMonth() === calendarMonth.getMonth() ? "" : " session-calendar-day-outside"}`} key={key}>
                       <span className="session-calendar-date">{day.getDate()}</span>
@@ -559,6 +653,11 @@ export default function ProgressDashboard() {
                 </li>
               ))}
             </ul>
+          )}
+          {hasMoreActivities && (
+            <button className="activity-load-more" disabled={isLoadingMoreActivities} onClick={() => void loadOlderActivities()} type="button">
+              {isLoadingMoreActivities ? "Loading..." : "Load older activities"}
+            </button>
           )}
         </section>
       </div>

@@ -103,14 +103,15 @@ export function getDatabase(): Database.Database {
       );
       CREATE INDEX IF NOT EXISTS idx_session_bookings_member_status
         ON session_bookings (member_id, status, session_id);
+      CREATE INDEX IF NOT EXISTS idx_session_bookings_session_status
+        ON session_bookings (session_id, status);
       CREATE TABLE IF NOT EXISTS session_waitlist (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         session_id INTEGER NOT NULL REFERENCES club_sessions(id) ON DELETE CASCADE,
         member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (session_id, member_id)
+        UNIQUE (session_id, member_id)
       );
-      CREATE INDEX IF NOT EXISTS idx_session_waitlist_order
-        ON session_waitlist (session_id, created_at, member_id);
       CREATE TABLE IF NOT EXISTS member_goals (
         member_id INTEGER PRIMARY KEY REFERENCES members(id) ON DELETE CASCADE,
         weekly_activity_goal INTEGER NOT NULL DEFAULT 3 CHECK (weekly_activity_goal BETWEEN 1 AND 14),
@@ -126,6 +127,30 @@ export function getDatabase(): Database.Database {
     if (!bookingColumns.some((column) => column.name === "attended")) {
       database.exec("ALTER TABLE session_bookings ADD COLUMN attended INTEGER CHECK (attended IS NULL OR attended IN (0, 1))");
     }
+    const waitlistColumns = database.prepare("PRAGMA table_info(session_waitlist)").all() as Array<{ name: string }>;
+    if (!waitlistColumns.some((column) => column.name === "id")) {
+      database.transaction(() => {
+        database.exec("DROP INDEX IF EXISTS idx_session_waitlist_order");
+        database.exec("ALTER TABLE session_waitlist RENAME TO session_waitlist_legacy");
+        database.exec(`
+          CREATE TABLE session_waitlist (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id INTEGER NOT NULL REFERENCES club_sessions(id) ON DELETE CASCADE,
+            member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (session_id, member_id)
+          )
+        `);
+        database.exec(`
+          INSERT INTO session_waitlist (session_id, member_id, created_at)
+          SELECT session_id, member_id, created_at
+          FROM session_waitlist_legacy
+          ORDER BY created_at ASC, rowid ASC
+        `);
+        database.exec("DROP TABLE session_waitlist_legacy");
+      })();
+    }
+    database.exec("CREATE INDEX IF NOT EXISTS idx_session_waitlist_order ON session_waitlist (session_id, id)");
 
     globalForDatabase.meshSportsDatabase = database;
   }

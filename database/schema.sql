@@ -91,15 +91,19 @@ CREATE TABLE IF NOT EXISTS session_bookings (
 CREATE INDEX IF NOT EXISTS idx_session_bookings_member_status
   ON session_bookings (member_id, status, session_id);
 
+CREATE INDEX IF NOT EXISTS idx_session_bookings_session_status
+  ON session_bookings (session_id, status);
+
 CREATE TABLE IF NOT EXISTS session_waitlist (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
   session_id INTEGER NOT NULL REFERENCES club_sessions(id) ON DELETE CASCADE,
   member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (session_id, member_id)
+  UNIQUE (session_id, member_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_session_waitlist_order
-  ON session_waitlist (session_id, created_at, member_id);
+  ON session_waitlist (session_id, id);
 
 CREATE TABLE IF NOT EXISTS member_goals (
   member_id INTEGER PRIMARY KEY REFERENCES members(id) ON DELETE CASCADE,

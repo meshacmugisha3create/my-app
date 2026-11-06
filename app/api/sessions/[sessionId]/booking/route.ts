@@ -37,7 +37,7 @@ export async function DELETE(
          FROM session_waitlist w
          JOIN members m ON m.id = w.member_id
          WHERE w.session_id = ?
-         ORDER BY w.created_at ASC, w.member_id ASC
+         ORDER BY w.id ASC
          LIMIT 1`,
       )
       .get(id) as { memberId: number; name: string; email: string } | undefined;

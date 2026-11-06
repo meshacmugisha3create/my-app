@@ -13,7 +13,6 @@ export async function GET() {
 
   return Response.json({
     weeklyActivityGoal: goal?.weeklyActivityGoal ?? defaultWeeklyActivityGoal,
-    currentDate: new Date().toISOString(),
   });
 }
 

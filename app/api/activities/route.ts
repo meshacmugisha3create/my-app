@@ -2,25 +2,93 @@ import { getCurrentMember, isStaffMember } from "@/lib/auth";
 import { getDatabase } from "@/lib/database";
 
 const activityTypes = new Set(["run-club", "strength", "recovery", "other"]);
+const activityPageSize = 50;
+
+type ActivitySummary = {
+  activityCount: number;
+  attendedCount: number;
+  totalMinutes: number;
+  totalDistance: number;
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export async function GET() {
+function addDays(dateValue: string, days: number): string {
+  const date = new Date(`${dateValue}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function currentWeekStart(): string {
+  const date = new Date();
+  date.setUTCHours(0, 0, 0, 0);
+  date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7));
+  return date.toISOString().slice(0, 10);
+}
+
+function isValidDateKey(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+export async function GET(request: Request) {
   const member = await getCurrentMember();
   if (!member) return Response.json({ error: "Please sign in to view your progress." }, { status: 401 });
 
-  const activities = getDatabase()
+  const query = new URL(request.url).searchParams;
+  const beforeDate = query.get("beforeDate");
+  const beforeIdValue = query.get("beforeId");
+  const beforeId = beforeIdValue === null ? null : Number(beforeIdValue);
+  if (
+    (beforeDate === null) !== (beforeId === null) ||
+    (beforeDate !== null && !isValidDateKey(beforeDate)) ||
+    (beforeId !== null && (!Number.isSafeInteger(beforeId) || beforeId < 1))
+  ) {
+    return Response.json({ error: "Choose a valid activity cursor." }, { status: 400 });
+  }
+
+  const requestedWeekStart = query.get("weekStart");
+  const weekStart = requestedWeekStart && isValidDateKey(requestedWeekStart) && new Date(`${requestedWeekStart}T00:00:00.000Z`).getUTCDay() === 1
+    ? requestedWeekStart
+    : currentWeekStart();
+  const weekEnd = addDays(weekStart, 49);
+  const database = getDatabase();
+  const summary = database
     .prepare(
-      `SELECT id, activity_type AS activityType, activity_date AS activityDate,
-              duration_minutes AS durationMinutes, distance_km AS distanceKm,
-              attended, notes
-       FROM activities
-       WHERE member_id = ?
-       ORDER BY activity_date DESC, id DESC`,
+      `SELECT COUNT(*) AS activityCount,
+              COALESCE(SUM(attended), 0) AS attendedCount,
+              COALESCE(SUM(duration_minutes), 0) AS totalMinutes,
+              COALESCE(SUM(distance_km), 0) AS totalDistance
+       FROM activities WHERE member_id = ?`,
     )
-    .all(member.id) as Array<{
+    .get(member.id) as ActivitySummary;
+
+  const weeklyCounts = database
+    .prepare(
+      `SELECT date(activity_date, '-' || ((CAST(strftime('%w', activity_date) AS INTEGER) + 6) % 7) || ' days') AS weekStart,
+              COUNT(*) AS count
+       FROM activities
+       WHERE member_id = ? AND attended = 1 AND activity_date >= ? AND activity_date < ?
+       GROUP BY weekStart`,
+    )
+    .all(member.id, weekStart, weekEnd) as Array<{ weekStart: string; count: number }>;
+
+  const cursorClause = beforeDate === null ? "" : " AND (activity_date < ? OR (activity_date = ? AND id < ?))";
+  const activityQuery = database.prepare(
+    `SELECT id, activity_type AS activityType, activity_date AS activityDate,
+            duration_minutes AS durationMinutes, distance_km AS distanceKm,
+            attended, notes
+     FROM activities
+     WHERE member_id = ?${cursorClause}
+     ORDER BY activity_date DESC, id DESC
+     LIMIT ?`,
+  );
+  const rows = (beforeDate === null
+    ? activityQuery.all(member.id, activityPageSize + 1)
+    : activityQuery.all(member.id, beforeDate, beforeDate, beforeId, activityPageSize + 1)) as Array<{
       id: number;
       activityType: string;
       activityDate: string;
@@ -29,10 +97,15 @@ export async function GET() {
       attended: number;
       notes: string;
     }>;
+  const hasMore = rows.length > activityPageSize;
+  const activities = rows.slice(0, activityPageSize);
 
   return Response.json({
     member: { ...member, isStaff: isStaffMember(member) },
     activities: activities.map((activity) => ({ ...activity, attended: activity.attended === 1 })),
+    summary,
+    weeklyCounts,
+    hasMore,
   });
 }
 
