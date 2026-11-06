@@ -1,69 +1,208 @@
-import Image from "next/image";
+const programs = [
+  {
+    number: "01",
+    program: "run-club",
+    category: "RUN CLUB",
+    title: "Find your pace.",
+    description: "Good miles, better company. Every pace belongs here.",
+    className: "program-card program-card-run",
+  },
+  {
+    number: "02",
+    program: "strength",
+    category: "STRENGTH",
+    title: "Stronger, together.",
+    description: "Small-group sessions built around showing up for each other.",
+    className: "program-card program-card-strength",
+  },
+  {
+    number: "03",
+    program: "recovery",
+    category: "RECOVERY",
+    title: "Make room to reset.",
+    description: "Mobility and recovery for everything you do next.",
+    className: "program-card program-card-recovery",
+  },
+];
 
 export default function Home() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="site-shell">
+      <header className="site-header" id="top">
+        <a className="brand" href="#top" aria-label="Mesh Sports home">
+          <span className="brand-mark" aria-hidden="true">
+            M
+          </span>
+          <span className="brand-name">
+            MESH<span>SPORTS</span>
+          </span>
+        </a>
+
+        <nav className="main-nav" aria-label="Main navigation">
+          <a href="#training">Training</a>-
+          <a href="#story">Our story</a>
+          <a href="#community">Community</a>
+        </nav>
+
+        <a className="header-link" href="/join">
+          Member login <span aria-hidden="true">↗</span>
+        </a>
+      </header>
+
+      <main>
+        <section className="hero" aria-labelledby="hero-title">
+          <div className="hero-copy">
+            <p className="eyebrow">
+              <span className="eyebrow-mark" aria-hidden="true" />
+              A DIFFERENT KIND OF SPORTS CLUB
+            </p>
+            <h1 id="hero-title">
+              MOVE
+              <br />
+              AS <span>ONE.</span>
+            </h1>
+            <p className="hero-description">
+              More than a workout. A little more courage, a lot more connection,
+              and a reason to keep showing up.
+            </p>
+            <div className="hero-actions">
+              <a className="button button-dark" href="#training">
+                Explore the movement <span aria-hidden="true">↗</span>
+              </a>
+              <a className="text-link" href="#story">
+                Get to know us <span aria-hidden="true">↓</span>
+              </a>
+            </div>
+            <div className="hero-note">
+              <span className="hero-note-line" aria-hidden="true" />
+              <span>FOR EVERY BODY. EVERY BEGINNING.</span>
+            </div>
+          </div>
+
+          <div className="hero-visual" role="img" aria-label="Runners moving together on an outdoor trail">
+            <div className="hero-visual-top">
+              <span>PEOPLE FIRST. ALWAYS.</span>
+              <span>EST. MMXXIV</span>
+            </div>
+            <div className="hero-stamp" aria-hidden="true">
+              <span>SHOW UP</span>
+              <span className="stamp-star">✳</span>
+              <span>MOVE TOGETHER</span>
+            </div>
+            <div className="hero-caption">
+              <span>THE BEST PART IS WHO YOU&apos;RE WITH.</span>
+              <span>01 — 03</span>
+            </div>
+          </div>
+
+          <span className="hero-index" aria-hidden="true">
+            01 / MESH MOVEMENT
+          </span>
+        </section>
+
+        <div className="ticker" aria-label="Our philosophy">
+          <div className="ticker-track">
+            <span>MOVE YOUR WAY</span>
+            <span className="ticker-star" aria-hidden="true">✳</span>
+            <span>FIND YOUR PEOPLE</span>
+            <span className="ticker-star" aria-hidden="true">✳</span>
+            <span>FEEL THE DIFFERENCE</span>
+            <span className="ticker-star" aria-hidden="true">✳</span>
+            <span>MOVE YOUR WAY</span>
+            <span className="ticker-star" aria-hidden="true">✳</span>
+            <span>FIND YOUR PEOPLE</span>
+            <span className="ticker-star" aria-hidden="true">✳</span>
+            <span>FEEL THE DIFFERENCE</span>
+            <span className="ticker-star" aria-hidden="true">✳</span>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
+
+        <section className="training-section section-pad" id="training" aria-labelledby="training-title">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">01 / FIND YOUR THING</p>
+              <h2 id="training-title">
+                Good things happen
+                <br />
+                <span>in the work.</span>
+              </h2>
+            </div>
+            <p className="section-intro">
+              Come for the movement. Stay for the feeling that you belong right
+              where you are.
+            </p>
+          </div>
+
+          <div className="program-grid">
+            {programs.map((program) => (
+              <a className={program.className} href={`/join?program=${program.program}`} key={program.number}>
+                <span className="program-number">{program.number} / MESH</span>
+                <span className="program-content">
+                  <span className="program-category">{program.category}</span>
+                  <span className="program-title">{program.title}</span>
+                  <span className="program-description">{program.description}</span>
+                </span>
+                <span className="program-arrow" aria-hidden="true">↗</span>
+              </a>
+            ))}
+          </div>
+        </section>
+
+        <section className="story-section" id="story" aria-labelledby="story-title">
+          <div className="story-image" role="img" aria-label="Athlete training with a teammate">
+            <span className="story-image-label">BETTER, NOT ALONE.</span>
+          </div>
+          <div className="story-copy">
+            <p className="eyebrow">02 / WHY WE&apos;RE HERE</p>
+            <h2 id="story-title">
+              Sport feels
+              <br />
+              different <span>together.</span>
+            </h2>
+            <p>
+              We built Mesh for the early risers, the starting-over-againers,
+              the “I&apos;ll just watch” friends who end up joining in. No
+              tryouts. No perfect pace. Just good people, moving forward.
+            </p>
+            <a className="text-link text-link-dark" href="#community">
+              A little more about Mesh <span aria-hidden="true">↗</span>
+            </a>
+            <div className="story-signoff">
+              <span>EVERY LEVEL. EVERY STORY.</span>
+              <span>THAT&apos;S THE POINT.</span>
+            </div>
+          </div>
+        </section>
+
+        <section className="community-section" id="community" aria-labelledby="community-title">
+          <p className="eyebrow">03 / YOUR NEXT CHAPTER</p>
+          <h2 id="community-title">
+            There&apos;s room
+            <br />
+            <span>for you here.</span>
+          </h2>
+          <p>Start where you are. We&apos;ll meet you there.</p>
+          <a className="button button-light" href="/join">
+            Find your first session <span aria-hidden="true">↗</span>
           </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+          <span className="community-orbit community-orbit-one" aria-hidden="true" />
+          <span className="community-orbit community-orbit-two" aria-hidden="true" />
+        </section>
       </main>
+
+      <footer className="site-footer">
+        <a className="brand footer-brand" href="#top" aria-label="Mesh Sports, back to top">
+          <span className="brand-mark" aria-hidden="true">M</span>
+          <span className="brand-name">
+            MESH<span>SPORTS</span>
+          </span>
+        </a>
+        <span className="footer-note">BUILT FOR THE JOY OF MOVING.</span>
+        <a className="back-to-top" href="#top">
+          BACK TO TOP <span aria-hidden="true">↑</span>
+        </a>
+        <span className="copyright">© MESH SPORTS 2026</span>
+      </footer>
     </div>
   );
 }
