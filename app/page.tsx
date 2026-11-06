@@ -1,4 +1,4 @@
-import { Mail, MessageCircle } from "lucide-react";
+import { Mail, MapPin, MessageCircle } from "lucide-react";
 
 const programs = [
   {
@@ -216,6 +216,25 @@ export default function Home() {
               <strong>0705530398</strong>
               <span className="contact-link-action">Chat with us <span aria-hidden="true">↗</span></span>
             </a>
+          </div>
+          <div className="branch-section" aria-labelledby="branch-title">
+            <div className="branch-heading">
+              <p className="eyebrow">VISIT A MESH SPORTS BRANCH</p>
+              <h3 id="branch-title">Find us near you.</h3>
+            </div>
+            <ul className="branch-list">
+              {[
+                "Naalya",
+                "Lugogo",
+                "Entebbe",
+                "Seeta",
+              ].map((branch) => (
+                <li key={branch}>
+                  <MapPin aria-hidden="true" size={17} strokeWidth={1.8} />
+                  <span>{branch}</span>
+                </li>
+              ))}
+            </ul>
           </div>
         </section>
       </main>

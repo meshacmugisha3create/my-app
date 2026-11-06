@@ -696,6 +696,46 @@ a:focus-visible {
   align-items: center;
 }
 
+.branch-section {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  align-items: center;
+  gap: clamp(32px, 8vw, 120px);
+  padding-top: 24px;
+  border-top: 1px solid #aeb5a5;
+}
+
+.branch-heading h3 {
+  margin: 10px 0 0;
+  font-size: 23px;
+  font-weight: 540;
+}
+
+.branch-list {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.branch-list li {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  color: #384b22;
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.branch-list svg {
+  flex: 0 0 auto;
+  color: #779b37;
+}
+
 .site-footer {
   display: grid;
   min-height: 90px;
@@ -866,6 +906,11 @@ a:focus-visible {
     padding: 64px 24px;
   }
 
+  .branch-section {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
   .contact-links {
     grid-template-columns: 1fr;
     gap: 2px;
@@ -873,6 +918,11 @@ a:focus-visible {
 
   .contact-link {
     min-height: 124px;
+  }
+
+  .branch-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px 10px;
   }
 
   .community-orbit {
