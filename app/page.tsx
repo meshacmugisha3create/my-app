@@ -1,3 +1,5 @@
+import { Mail, MessageCircle } from "lucide-react";
+
 const programs = [
   {
     number: "01",
@@ -42,6 +44,7 @@ export default function Home() {
           <a href="#training">Training</a>-
           <a href="#story">Our story</a>
           <a href="#community">Community</a>
+          <a href="#contact">Contact</a>
         </nav>
 
         <a className="header-link" href="/join">
@@ -187,6 +190,33 @@ export default function Home() {
           </a>
           <span className="community-orbit community-orbit-one" aria-hidden="true" />
           <span className="community-orbit community-orbit-two" aria-hidden="true" />
+        </section>
+
+        <section className="contact-section" id="contact" aria-labelledby="contact-title">
+          <div className="contact-copy">
+            <p className="eyebrow">04 / DIRECT SUPPORT</p>
+            <h2 id="contact-title">Need a hand? Talk to us.</h2>
+            <p>Reach the Mesh Sports team directly for help, questions, or service.</p>
+          </div>
+          <div className="contact-links">
+            <a className="contact-link" href="mailto:meshacmugisha8@gmail.com">
+              <span className="contact-icon" aria-hidden="true"><Mail size={21} strokeWidth={1.8} /></span>
+              <span className="contact-link-label">EMAIL</span>
+              <strong>meshacmugisha8@gmail.com</strong>
+              <span className="contact-link-action">Send an email <span aria-hidden="true">↗</span></span>
+            </a>
+            <a
+              className="contact-link"
+              href="https://wa.me/256705530398?text=Hello%20Mesh%20Sports%2C%20I%20need%20some%20help."
+              rel="noreferrer"
+              target="_blank"
+            >
+              <span className="contact-icon" aria-hidden="true"><MessageCircle size={21} strokeWidth={1.8} /></span>
+              <span className="contact-link-label">WHATSAPP</span>
+              <strong>0705530398</strong>
+              <span className="contact-link-action">Chat with us <span aria-hidden="true">↗</span></span>
+            </a>
+          </div>
         </section>
       </main>
 

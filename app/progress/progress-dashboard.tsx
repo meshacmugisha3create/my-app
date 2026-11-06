@@ -27,8 +27,16 @@ type ClubSession = {
   description: string;
   bookedCount: number;
   isBooked: boolean;
+  isWaitlisted: boolean;
   spotsLeft: number;
 };
+
+function localDateKey(value: Date): string {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
 
 const activityLabels: Record<string, string> = {
   "run-club": "Run club",
@@ -65,6 +73,11 @@ export default function ProgressDashboard() {
   const [member, setMember] = useState<Member | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [sessions, setSessions] = useState<ClubSession[]>([]);
+  const [weeklyActivityGoal, setWeeklyActivityGoal] = useState(3);
+  const [weeklyGoalDraft, setWeeklyGoalDraft] = useState(3);
+  const [isSavingGoal, setIsSavingGoal] = useState(false);
+  const [goalMessage, setGoalMessage] = useState("");
+  const [goalError, setGoalError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -72,17 +85,33 @@ export default function ProgressDashboard() {
   const [sessionMessage, setSessionMessage] = useState("");
   const [sessionError, setSessionError] = useState("");
   const [sessionActionId, setSessionActionId] = useState<number | null>(null);
+  const [sessionActivityFilter, setSessionActivityFilter] = useState("all");
+  const [sessionLocationFilter, setSessionLocationFilter] = useState("");
+  const [sessionView, setSessionView] = useState<"list" | "calendar">("list");
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date(2000, 0, 1));
+  const [today, setToday] = useState<Date | null>(null);
   const [selectedActivityType, setSelectedActivityType] = useState("run-club");
   const selectedActivityGuide = activityGuides[selectedActivityType];
+  const visibleSessions = sessions.filter((session) =>
+    (sessionActivityFilter === "all" || session.activityType === sessionActivityFilter) &&
+    session.location.toLowerCase().includes(sessionLocationFilter.trim().toLowerCase()),
+  );
+  const calendarStart = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1 - calendarMonth.getDay());
+  const calendarDays = Array.from({ length: 42 }, (_, index) => {
+    const day = new Date(calendarStart);
+    day.setDate(calendarStart.getDate() + index);
+    return day;
+  });
 
   useEffect(() => {
     async function loadProgress() {
       try {
-        const [response, sessionsResponse] = await Promise.all([
+        const [response, sessionsResponse, goalResponse] = await Promise.all([
           fetch("/api/activities", { cache: "no-store" }),
           fetch("/api/sessions", { cache: "no-store" }),
+          fetch("/api/goals", { cache: "no-store" }),
         ]);
-        if (response.status === 401 || sessionsResponse.status === 401) {
+        if (response.status === 401 || sessionsResponse.status === 401 || goalResponse.status === 401) {
           router.replace("/login");
           return;
         }
@@ -93,6 +122,13 @@ export default function ProgressDashboard() {
         if (!sessionsResponse.ok) throw new Error("We couldn’t load upcoming sessions.");
         const sessionResult: { sessions: ClubSession[] } = await sessionsResponse.json();
         setSessions(sessionResult.sessions);
+        if (!goalResponse.ok) throw new Error("We couldn’t load your weekly goal.");
+        const goalResult: { weeklyActivityGoal: number; currentDate: string } = await goalResponse.json();
+        setWeeklyActivityGoal(goalResult.weeklyActivityGoal);
+        setWeeklyGoalDraft(goalResult.weeklyActivityGoal);
+        const now = new Date(goalResult.currentDate);
+        setToday(now);
+        setCalendarMonth(new Date(now.getFullYear(), now.getMonth(), 1));
       } catch {
         setError("We couldn’t load your progress. Refresh the page to try again.");
       } finally {
@@ -173,7 +209,7 @@ export default function ProgressDashboard() {
     setSessionMessage("");
 
     try {
-      const response = session.isBooked
+      const response = session.isBooked || session.isWaitlisted
         ? await fetch(`/api/sessions/${session.id}/booking`, { method: "DELETE" })
         : await fetch("/api/sessions", {
             method: "POST",
@@ -209,9 +245,55 @@ export default function ProgressDashboard() {
     router.refresh();
   }
 
+  async function saveWeeklyGoal(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsSavingGoal(true);
+    setGoalError("");
+    setGoalMessage("");
+    try {
+      const response = await fetch("/api/goals", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ weeklyActivityGoal: weeklyGoalDraft }),
+      });
+      const result: { weeklyActivityGoal?: number; error?: string } = await response.json();
+      if (response.status === 401) {
+        router.replace("/login");
+        return;
+      }
+      if (!response.ok || result.weeklyActivityGoal === undefined) {
+        setGoalError(result.error ?? "We couldn’t save your weekly goal.");
+        return;
+      }
+      setWeeklyActivityGoal(result.weeklyActivityGoal);
+      setGoalMessage("Weekly goal updated.");
+    } catch {
+      setGoalError("We couldn’t reach the server. Try again.");
+    } finally {
+      setIsSavingGoal(false);
+    }
+  }
+
   const attendedCount = activities.filter((activity) => activity.attended).length;
   const totalMinutes = activities.reduce((total, activity) => total + activity.durationMinutes, 0);
   const totalDistance = activities.reduce((total, activity) => total + (activity.distanceKm ?? 0), 0);
+  const currentWeekStart = today ? new Date(today.getTime()) : new Date(0);
+  currentWeekStart.setHours(0, 0, 0, 0);
+  currentWeekStart.setDate(currentWeekStart.getDate() - ((currentWeekStart.getDay() + 6) % 7));
+  const weeklyBuckets = Array.from({ length: 7 }, (_, index) => {
+    const start = new Date(currentWeekStart);
+    start.setDate(currentWeekStart.getDate() - (6 - index) * 7);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 7);
+    const count = activities.filter((activity) => {
+      if (!activity.attended) return false;
+      const date = new Date(`${activity.activityDate}T00:00:00`);
+      return date >= start && date < end;
+    }).length;
+    return { start, count };
+  });
+  const currentWeekCount = weeklyBuckets[weeklyBuckets.length - 1].count;
+  const weeklyChartMax = Math.max(weeklyActivityGoal, ...weeklyBuckets.map((week) => week.count), 1);
 
   return (
     <div className="member-dashboard">
@@ -240,6 +322,48 @@ export default function ProgressDashboard() {
         <div className="progress-stat"><span>DISTANCE</span><strong>{isLoading ? "—" : `${totalDistance.toFixed(1)} km`}</strong></div>
       </section>
 
+      <section className="weekly-goal" aria-labelledby="weekly-goal-title">
+        <div className="weekly-goal-heading">
+          <div>
+            <p className="eyebrow">A LITTLE, OFTEN</p>
+            <h2 id="weekly-goal-title">Weekly consistency</h2>
+            <p className="weekly-goal-current">This week: {currentWeekCount} of {weeklyActivityGoal} activities</p>
+          </div>
+          <form className="weekly-goal-form" onSubmit={saveWeeklyGoal}>
+            <label className="form-field">
+              <span>ACTIVITIES PER WEEK</span>
+              <select onChange={(event) => setWeeklyGoalDraft(Number(event.target.value))} value={weeklyGoalDraft}>
+                {Array.from({ length: 14 }, (_, index) => index + 1).map((count) => (
+                  <option key={count} value={count}>{count} {count === 1 ? "activity" : "activities"}</option>
+                ))}
+              </select>
+            </label>
+            <button className="button button-dark" disabled={isSavingGoal || isLoading} type="submit">
+              {isSavingGoal ? "Saving..." : "Save goal"}
+            </button>
+          </form>
+        </div>
+        <progress className="weekly-goal-progress" max={weeklyActivityGoal} value={Math.min(currentWeekCount, weeklyActivityGoal)}>
+          {currentWeekCount} of {weeklyActivityGoal}
+        </progress>
+        <ol className="weekly-chart" aria-label="Attended activities per week for the past seven weeks">
+          {weeklyBuckets.map((week) => (
+            <li key={week.start.toISOString()}>
+              <span className="weekly-chart-count">{week.count}</span>
+              <div className="weekly-chart-track">
+                <span style={{ height: `${Math.max(4, (week.count / weeklyChartMax) * 100)}%` }} />
+              </div>
+              <span className="weekly-chart-label">{week.start.toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span>
+            </li>
+          ))}
+        </ol>
+        {(goalMessage || goalError) && (
+          <p aria-live="polite" className={`form-feedback${goalError ? " form-feedback-error" : " form-feedback-success"}`} role={goalError ? "alert" : "status"}>
+            {goalError || goalMessage}
+          </p>
+        )}
+      </section>
+
       <section className="member-sessions" aria-labelledby="member-sessions-title">
         <div className="member-sessions-heading">
           <div>
@@ -248,13 +372,63 @@ export default function ProgressDashboard() {
           </div>
           <p>Find a spot that works for you.</p>
         </div>
+        <div className="session-tools">
+          <label className="session-filter">
+            <span>ACTIVITY</span>
+            <select onChange={(event) => setSessionActivityFilter(event.target.value)} value={sessionActivityFilter}>
+              <option value="all">All activities</option>
+              <option value="run-club">Run club</option>
+              <option value="strength">Strength</option>
+              <option value="recovery">Recovery</option>
+            </select>
+          </label>
+          <label className="session-filter session-location-filter">
+            <span>LOCATION</span>
+            <input onChange={(event) => setSessionLocationFilter(event.target.value)} placeholder="Search locations" value={sessionLocationFilter} />
+          </label>
+          <div className="session-view-switch" aria-label="Session view">
+            <button aria-pressed={sessionView === "list"} onClick={() => setSessionView("list")} type="button">List</button>
+            <button aria-pressed={sessionView === "calendar"} onClick={() => setSessionView("calendar")} type="button">Calendar</button>
+          </div>
+        </div>
         {isLoading ? (
           <p className="activity-empty">Loading sessions...</p>
         ) : sessions.length === 0 ? (
           <p className="activity-empty">There are no upcoming sessions right now. Check back soon.</p>
+        ) : visibleSessions.length === 0 ? (
+          <p className="activity-empty">No sessions match these filters.</p>
+        ) : sessionView === "calendar" ? (
+          <div className="session-calendar">
+            <div className="session-calendar-heading">
+              <button aria-label="Previous month" onClick={() => setCalendarMonth((month) => new Date(month.getFullYear(), month.getMonth() - 1, 1))} type="button">←</button>
+              <h3>{calendarMonth.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</h3>
+              <button aria-label="Next month" onClick={() => setCalendarMonth((month) => new Date(month.getFullYear(), month.getMonth() + 1, 1))} type="button">→</button>
+            </div>
+            <div className="session-calendar-scroll">
+              <div className="session-calendar-grid">
+                {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
+                  <span className="session-calendar-weekday" key={day}>{day}</span>
+                ))}
+                {calendarDays.map((day) => {
+                  const key = localDateKey(day);
+                  const daySessions = visibleSessions.filter((session) => localDateKey(new Date(session.startsAt)) === key);
+                  return (
+                    <div className={`session-calendar-day${day.getMonth() === calendarMonth.getMonth() ? "" : " session-calendar-day-outside"}`} key={key}>
+                      <span className="session-calendar-date">{day.getDate()}</span>
+                      {daySessions.map((session) => (
+                        <span className="session-calendar-event" key={session.id} title={`${session.title} · ${session.location}`}>
+                          {new Date(session.startsAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })} {session.title}
+                        </span>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
         ) : (
           <ul className="member-session-list">
-            {sessions.map((session) => (
+            {visibleSessions.map((session) => (
               <li className="member-session-row" key={session.id}>
                 <div className="member-session-details">
                   <p className="member-session-type">{activityLabels[session.activityType] ?? "Mesh session"}</p>
@@ -268,16 +442,16 @@ export default function ProgressDashboard() {
                     </time>
                     <span>{session.durationMinutes} min</span>
                     <span>{session.location}</span>
-                    <span>{session.spotsLeft} {session.spotsLeft === 1 ? "spot" : "spots"} left</span>
+                    <span>{session.isWaitlisted ? "Waitlisted" : `${session.spotsLeft} ${session.spotsLeft === 1 ? "spot" : "spots"} left`}</span>
                   </div>
                 </div>
                 <button
-                  className={session.isBooked ? "session-reserve session-reserve-booked" : "session-reserve"}
-                  disabled={sessionActionId === session.id || (!session.isBooked && session.spotsLeft === 0)}
+                  className={session.isBooked || session.isWaitlisted ? "session-reserve session-reserve-booked" : "session-reserve"}
+                  disabled={sessionActionId === session.id}
                   onClick={() => void changeReservation(session)}
                   type="button"
                 >
-                  {sessionActionId === session.id ? "Updating..." : session.isBooked ? "Cancel spot" : session.spotsLeft === 0 ? "Full" : "Reserve spot"}
+                  {sessionActionId === session.id ? "Updating..." : session.isBooked ? "Cancel spot" : session.isWaitlisted ? "Leave waitlist" : session.spotsLeft === 0 ? "Join waitlist" : "Reserve spot"}
                 </button>
               </li>
             ))}

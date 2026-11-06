@@ -84,8 +84,25 @@ CREATE TABLE IF NOT EXISTS session_bookings (
   member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
   status TEXT NOT NULL DEFAULT 'booked' CHECK (status IN ('booked', 'cancelled')),
   booked_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  attended INTEGER CHECK (attended IS NULL OR attended IN (0, 1)),
   UNIQUE (session_id, member_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_session_bookings_member_status
   ON session_bookings (member_id, status, session_id);
+
+CREATE TABLE IF NOT EXISTS session_waitlist (
+  session_id INTEGER NOT NULL REFERENCES club_sessions(id) ON DELETE CASCADE,
+  member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (session_id, member_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_session_waitlist_order
+  ON session_waitlist (session_id, created_at, member_id);
+
+CREATE TABLE IF NOT EXISTS member_goals (
+  member_id INTEGER PRIMARY KEY REFERENCES members(id) ON DELETE CASCADE,
+  weekly_activity_goal INTEGER NOT NULL DEFAULT 3 CHECK (weekly_activity_goal BETWEEN 1 AND 14),
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

@@ -1,4 +1,5 @@
 import { getDatabase } from "@/lib/database";
+import { notifyStaff, sendEmail } from "@/lib/email";
 
 const programs = new Set(["run-club", "strength", "recovery", "not-sure"]);
 
@@ -61,6 +62,19 @@ export async function POST(request: Request) {
          VALUES (?, ?, ?, ?)`,
       )
       .run(name, email, phone || null, program);
+
+    const programLabel = program === "not-sure" ? "Open to suggestions" : program.replace("-", " ");
+    await Promise.all([
+      sendEmail({
+        to: email,
+        subject: "We received your Mesh Sports request",
+        text: `Hi ${name},\n\nThanks for reaching out about ${programLabel}. A member of our team will be in touch soon.\n\nMesh Sports`,
+      }),
+      notifyStaff(
+        "New Mesh Sports join request",
+        `${name} requested information about ${programLabel}.\nEmail: ${email}${phone ? `\nPhone: ${phone}` : ""}`,
+      ),
+    ]);
 
     return Response.json(
       { message: "Thanks for reaching out. We’ll be in touch soon." },

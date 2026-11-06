@@ -27,6 +27,13 @@ type JoinRequest = {
   createdAt: string;
 };
 
+type SessionAttendee = {
+  memberId: number;
+  name: string;
+  email: string;
+  attended: boolean | null;
+};
+
 const programLabels: Record<string, string> = {
   "run-club": "Run club",
   strength: "Strength",
@@ -45,6 +52,11 @@ export default function StaffDashboard() {
   const [sessions, setSessions] = useState<StaffSession[]>([]);
   const [requests, setRequests] = useState<JoinRequest[]>([]);
   const [editingSession, setEditingSession] = useState<StaffSession | null>(null);
+  const [attendanceSession, setAttendanceSession] = useState<StaffSession | null>(null);
+  const [attendees, setAttendees] = useState<SessionAttendee[]>([]);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [attendanceError, setAttendanceError] = useState("");
+  const [attendanceBusyMemberId, setAttendanceBusyMemberId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [busyItem, setBusyItem] = useState<number | null>(null);
@@ -178,6 +190,43 @@ export default function StaffDashboard() {
     }
   }
 
+  async function loadAttendance(session: StaffSession) {
+    setAttendanceSession(session);
+    setAttendanceLoading(true);
+    setAttendanceError("");
+    try {
+      const response = await fetch(`/api/staff/sessions/${session.id}/attendance`, { cache: "no-store" });
+      const result: { attendees?: SessionAttendee[]; error?: string } = await response.json();
+      if (!response.ok || !result.attendees) throw new Error(result.error ?? "We couldn’t load the roster.");
+      setAttendees(result.attendees);
+    } catch (caught) {
+      setAttendanceError(caught instanceof Error ? caught.message : "We couldn’t load the roster.");
+      setAttendees([]);
+    } finally {
+      setAttendanceLoading(false);
+    }
+  }
+
+  async function updateAttendance(attendee: SessionAttendee, attended: boolean) {
+    if (!attendanceSession) return;
+    setAttendanceBusyMemberId(attendee.memberId);
+    setAttendanceError("");
+    try {
+      const response = await fetch(`/api/staff/sessions/${attendanceSession.id}/attendance`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ memberId: attendee.memberId, attended }),
+      });
+      const result: { error?: string } = await response.json();
+      if (!response.ok) throw new Error(result.error ?? "We couldn’t update attendance.");
+      setAttendees((current) => current.map((item) => item.memberId === attendee.memberId ? { ...item, attended } : item));
+    } catch (caught) {
+      setAttendanceError(caught instanceof Error ? caught.message : "We couldn’t update attendance.");
+    } finally {
+      setAttendanceBusyMemberId(null);
+    }
+  }
+
   return (
     <div className="staff-dashboard">
       <header className="member-header">
@@ -269,6 +318,7 @@ export default function StaffDashboard() {
                     </div>
                     <div className="staff-item-actions">
                       <button className="staff-text-button" onClick={() => { setEditingSession(session); setMessage(""); }} type="button">Edit</button>
+                      <button className="staff-text-button" onClick={() => void loadAttendance(session)} type="button">Attendance</button>
                       <button className="staff-text-button" disabled={busyItem === session.id} onClick={() => void updateSessionStatus(session)} type="button">
                         {session.isCancelled ? "Restore" : "Cancel session"}
                       </button>
@@ -276,6 +326,36 @@ export default function StaffDashboard() {
                   </li>
                 ))}
               </ul>
+            )}
+            {attendanceSession && (
+              <section className="attendance-panel" aria-labelledby="attendance-title">
+                <div className="activity-history-heading">
+                  <div>
+                    <p className="eyebrow">SESSION ROSTER</p>
+                    <h3 id="attendance-title">{attendanceSession.title}</h3>
+                  </div>
+                  <button className="staff-text-button" onClick={() => setAttendanceSession(null)} type="button">Close</button>
+                </div>
+                {attendanceError && <p className="form-feedback form-feedback-error" role="alert">{attendanceError}</p>}
+                {attendanceLoading ? <p className="activity-empty">Loading roster...</p> : attendees.length === 0 ? (
+                  <p className="activity-empty">No confirmed bookings for this session.</p>
+                ) : (
+                  <ul className="attendance-list">
+                    {attendees.map((attendee) => (
+                      <li className="attendance-row" key={attendee.memberId}>
+                        <div>
+                          <strong>{attendee.name}</strong>
+                          <span>{attendee.email}</span>
+                        </div>
+                        <div className="attendance-actions" aria-label={`Attendance for ${attendee.name}`}>
+                          <button aria-pressed={attendee.attended === true} disabled={attendanceBusyMemberId === attendee.memberId} onClick={() => void updateAttendance(attendee, true)} type="button">Present</button>
+                          <button aria-pressed={attendee.attended === false} disabled={attendanceBusyMemberId === attendee.memberId} onClick={() => void updateAttendance(attendee, false)} type="button">Absent</button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
             )}
           </section>
 

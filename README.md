@@ -1,7 +1,7 @@
 # Mesh Sports
 
 Mesh Sports is a Next.js app with SQLite-backed member accounts, activity tracking,
-and a session inquiry form.
+session booking, and direct service-provider contact links.
 
 ## Run locally
 
@@ -34,9 +34,11 @@ into SQLite using a parameterized statement. The table definition is in
 
 ## Members and staff
 
-Members can create an account, browse upcoming sessions, reserve or cancel a
-spot, and log completed activity from `/progress`. Staff can publish, edit, or
-cancel sessions and manage join inquiries from `/staff`.
+Members can create an account, browse and filter upcoming sessions in a list or
+calendar, reserve or cancel a spot, join a waitlist, and log completed activity
+from `/progress`. Members can also set a weekly activity goal and view recent
+weekly progress. Staff can publish, edit, or cancel sessions, record attendance,
+and manage join inquiries from `/staff`.
 
 To enable staff access, add the email address of an existing member account to
 `MESH_ADMIN_EMAILS` in `.env.local` as a comma-separated list, then restart the
@@ -44,9 +46,14 @@ app. Staff accounts are not created automatically. The staff desk is protected
 by this allowlist; member APIs continue to require a signed-in session.
 
 No session schedule is preloaded. Add real times, locations, capacities, and
-details through the staff desk. Inquiry statuses are tracked in the app, but
-the app does not send email notifications; staff follow up using the contact
-details shown in each inquiry.
+details through the staff desk. When Resend is configured, the app emails join
+request confirmations, booking and waitlist updates, and staff notifications.
+Set `RESEND_API_KEY` and a verified `EMAIL_FROM` address in `.env.local`; staff
+notifications go to the addresses in `MESH_ADMIN_EMAILS`. Email is optional, so
+the app continues to accept requests and bookings when those settings are absent.
+
+The homepage contact section links directly to the service provider by email
+and WhatsApp. Update the contact destinations in `app/page.tsx` if they change.
 
 ## Google sign-in
 
